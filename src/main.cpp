@@ -166,13 +166,20 @@ void update_visual_signaling(const uint8_t duty) {
 // Acionamento do alarme sonoro (apenas em transição de estado para evitar reiniciar o oscilador)
 void update_acoustic_alarm(const bool activate) {
   static bool buzzer_is_active = false;
-  if (activate != buzzer_is_active) {
-    buzzer_is_active = activate;
-    if (activate) {
-      tone(pin_buzzer, buzzer_frequency_hz);
-    } else {
-      noTone(pin_buzzer);
-    }
+
+  // Se o estado for igual ao atual, não há nada a fazer (aborta a função)
+  if (activate == buzzer_is_active) {
+    return;
+  }
+
+  // Atualiza a memória estática
+  buzzer_is_active = activate;
+
+  // Aplica a mudança física no hardware
+  if (activate) {
+    tone(pin_buzzer, buzzer_frequency_hz);
+  } else {
+    noTone(pin_buzzer);
   }
 }
 
