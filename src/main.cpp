@@ -50,6 +50,7 @@ constexpr uint8_t pwm_max_duty = 255;  // Ciclo de trabalho máximo (100% de bri
 // Temporizações, parâmetros acústicos e comunicação serial
 constexpr unsigned long serial_baud_rate = 115200;     // Velocidade da porta serial (115200 bps)
 constexpr unsigned long telemetry_interval_ms = 1000;  // Intervalo de transmissão serial (1 segundo)
+constexpr unsigned long sampling_interval_ms = 100;    // Intervalo de amostragem do sensor (100 ms)
 constexpr unsigned int buzzer_frequency_hz = 1000;     // Frequência do alarme sonoro no buzzer (1000 Hz)
 constexpr uint8_t telemetry_decimals = 1;              // Casas decimais da temperatura na telemetria
 
@@ -72,8 +73,9 @@ struct TemperatureTelemetry {
 };
 
 // Variáveis de estado global do sistema
-SystemState current_state = SystemState::Normal;
+auto current_state = SystemState::Normal;
 unsigned long last_telemetry_ms = 0;
+unsigned long last_sampling_ms = 0;
 TemperatureTelemetry latest_telemetry = {
     .temperature_c = 0.0F,
     .raw_adc = 0,
@@ -83,10 +85,11 @@ TemperatureTelemetry latest_telemetry = {
     .buzzer_active = false,
 };
 
-// Leitura da temperatura e conversão para Celsius via Equação Beta
-float read_temperature_celsius() {
-  const int raw_adc = analogRead(pin_ntc);
+// Leitura analógica da porta do sensor NTC
+int read_temperature_adc() { return analogRead(pin_ntc); }
 
+// Conversão da leitura ADC para graus Celsius via Equação Beta
+float calculate_temperature_celsius(const int raw_adc) {
   // Tratamento de limites físicos do NTC (evita divisões por zero)
   if (raw_adc <= adc_raw_min) {
     return ntc_max_temp_c;
@@ -148,18 +151,35 @@ uint8_t calculate_pwm_duty(const float temp_c) {
 
 // Conversão do ciclo de trabalho do PWM para porcentagem (0.0% a 100.0%)
 float calculate_pwm_percentage(const uint8_t duty) {
-  return (static_cast<float>(duty) / static_cast<float>(pwm_max_duty)) * 100.0F;
+  return static_cast<float>(duty) / static_cast<float>(pwm_max_duty) * 100.0F;
 }
 
-// Atualização das saídas do LED (via PWM) e do Buzzer piezoelétrico
-void update_actuators(const SystemState state, const uint8_t duty) {
-  analogWrite(pin_led, duty);
-
-  if (state == SystemState::CriticalAlarm) {
-    tone(pin_buzzer, buzzer_frequency_hz);
-    return;
+// Atualização da intensidade do LED via PWM (apenas se houver alteração)
+void update_visual_signaling(const uint8_t duty) {
+  static int last_duty = -1;
+  if (duty != last_duty) {
+    analogWrite(pin_led, duty);
+    last_duty = duty;
   }
-  noTone(pin_buzzer);
+}
+
+// Acionamento do alarme sonoro (apenas em transição de estado para evitar reiniciar o oscilador)
+void update_acoustic_alarm(const bool activate) {
+  static bool buzzer_is_active = false;
+  if (activate != buzzer_is_active) {
+    buzzer_is_active = activate;
+    if (activate) {
+      tone(pin_buzzer, buzzer_frequency_hz);
+    } else {
+      noTone(pin_buzzer);
+    }
+  }
+}
+
+// Atualização dos atuadores físicos (LED e Buzzer)
+void update_actuators(const SystemState state, const uint8_t duty) {
+  update_visual_signaling(duty);
+  update_acoustic_alarm(state == SystemState::CriticalAlarm);
 }
 
 // Retorna o rótulo textual do status do sistema para a telemetria serial
@@ -210,54 +230,65 @@ void setup() {
   pinMode(pin_led, OUTPUT);
   pinMode(pin_buzzer, OUTPUT);
 
-  analogWrite(pin_led, pwm_off);
-  noTone(pin_buzzer);
+  // Amostragem inicial e definição do estado de partida seguro
+  const int initial_adc = read_temperature_adc();
+  const float initial_temp = calculate_temperature_celsius(initial_adc);
+  current_state = classify_state(initial_temp);
+  const uint8_t initial_duty = calculate_pwm_duty(initial_temp);
+
+  latest_telemetry = {
+      .temperature_c = initial_temp,
+      .raw_adc = initial_adc,
+      .pwm_duty = initial_duty,
+      .pwm_percentage = calculate_pwm_percentage(initial_duty),
+      .state = current_state,
+      .buzzer_active = current_state == SystemState::CriticalAlarm,
+  };
+
+  update_actuators(current_state, initial_duty);
 }
 
 void loop() {
   const unsigned long current_ms = millis();
 
-  // Amostragem em tempo real do sensor NTC
-  const float temp_c = read_temperature_celsius();
-  const int raw_adc = analogRead(pin_ntc);
+  // Amostragem periódica do sensor a cada 100 ms (elimina sobrecarga da CPU)
+  if (current_ms - last_sampling_ms >= sampling_interval_ms) {
+    last_sampling_ms = current_ms;
 
-  // Classificação do estado e cálculo do PWM proporcional
-  const SystemState new_state = classify_state(temp_c);
-  const uint8_t pwm_duty = calculate_pwm_duty(temp_c);
-  const float pwm_pct = calculate_pwm_percentage(pwm_duty);
+    const int raw_adc = read_temperature_adc();
+    const float temp_c = calculate_temperature_celsius(raw_adc);
 
-  // Atualização imediata dos atuadores físicos (LED e Buzzer)
-  update_actuators(new_state, pwm_duty);
+    const SystemState new_state = classify_state(temp_c);
+    const uint8_t pwm_duty = calculate_pwm_duty(temp_c);
+    const float pwm_pct = calculate_pwm_percentage(pwm_duty);
 
-  // Atualização do registro consolidado de telemetria
-  const bool buzzer_is_active = (new_state == SystemState::CriticalAlarm);
+    // Atualização imediata dos atuadores
+    update_actuators(new_state, pwm_duty);
 
-  // Atualização do pacote de telemetria agregada
-  latest_telemetry = {
-      .temperature_c = temp_c,
-      .raw_adc = raw_adc,
-      .pwm_duty = pwm_duty,
-      .pwm_percentage = pwm_pct,
-      .state = new_state,
-      .buzzer_active = buzzer_is_active,
-  };
+    // Notificação imediata em transição para o estado crítico
+    if (new_state == SystemState::CriticalAlarm && current_state != SystemState::CriticalAlarm) {
+      notify_critical_alarm();
+    }
+
+    latest_telemetry = {
+        .temperature_c = temp_c,
+        .raw_adc = raw_adc,
+        .pwm_duty = pwm_duty,
+        .pwm_percentage = pwm_pct,
+        .state = new_state,
+        .buzzer_active = new_state == SystemState::CriticalAlarm,
+    };
+
+    current_state = new_state;
+  }
 
   // Transmissão periódica da telemetria serial a cada 1 segundo (1000 ms)
   if (current_ms - last_telemetry_ms >= telemetry_interval_ms) {
     last_telemetry_ms = current_ms;
 
-    // Se estiver em estado crítico, exibe a mensagem de aviso obrigatória
-    if (new_state == SystemState::CriticalAlarm) {
+    if (current_state == SystemState::CriticalAlarm) {
       notify_critical_alarm();
     }
-
     transmit_telemetry(latest_telemetry);
   }
-
-  // Notificação imediata em transição para o estado crítico
-  if (new_state == SystemState::CriticalAlarm && current_state != SystemState::CriticalAlarm) {
-    notify_critical_alarm();
-  }
-
-  current_state = new_state;
 }
