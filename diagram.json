@@ -4,7 +4,7 @@
   "editor": "wokwi",
   "parts": [
     {
-      "type": "wokwi-esp32-devkit-v1",
+      "type": "board-esp32-devkit-c-v4",
       "id": "esp",
       "top": 100,
       "left": 100,
@@ -13,50 +13,42 @@
     {
       "type": "wokwi-ntc-temperature-sensor",
       "id": "ntc",
-      "top": -80,
-      "left": 100,
-      "attrs": {
-        "temperature": "24"
-      }
+      "top": 2.6,
+      "left": -67.8,
+      "attrs": { "temperature": "24" }
     },
     {
       "type": "wokwi-led",
       "id": "led",
-      "top": 80,
-      "left": 360,
-      "attrs": {
-        "color": "red"
-      }
+      "top": 82.8,
+      "left": 311,
+      "attrs": { "color": "red" }
     },
     {
       "type": "wokwi-resistor",
       "id": "res",
-      "top": 160,
-      "left": 360,
+      "top": 187.2,
+      "left": 277.85,
       "rotate": 90,
-      "attrs": {
-        "value": "220"
-      }
+      "attrs": { "value": "220" }
     },
     {
       "type": "wokwi-buzzer",
       "id": "buzzer",
-      "top": -60,
-      "left": 360,
-      "attrs": {
-        "volume": "0.5"
-      }
+      "top": 21.6,
+      "left": 251.4,
+      "attrs": { "volume": "0.5" }
     }
   ],
   "connections": [
-    [ "esp:3V3", "ntc:VCC", "red", [ "h-20", "v-80" ] ],
-    [ "esp:GND.1", "ntc:GND", "black", [ "h-40", "v-100" ] ],
-    [ "esp:D34", "ntc:OUT", "green", [ "v-30", "h-60" ] ],
-    [ "esp:D23", "led:A", "orange", [ "h20", "v-20" ] ],
-    [ "led:C", "res:1", "black", [ "v0" ] ],
-    [ "res:2", "esp:GND.2", "black", [ "v20", "h-150" ] ],
-    [ "esp:D19", "buzzer:2", "purple", [ "h30", "v-120" ] ],
-    [ "buzzer:1", "esp:GND.3", "black", [ "v40", "h-120" ] ]
+    ["esp:3V3", "ntc:VCC", "red", ["h-20", "v-80"]],
+    ["esp:GND.1", "ntc:GND", "black", ["h-8.61", "v-224.8"]],
+    ["esp:34", "ntc:OUT", "yellow", ["v5.6", "h-27.81", "v-124.7"]],
+    ["led:C", "res:1", "red", ["v31.6", "h-29.4"]],
+    ["esp:19", "buzzer:2", "red", ["h20.04", "v-71.2", "h67.6"]],
+    ["esp:23", "led:A", "red", ["h0"]],
+    ["buzzer:1", "esp:GND.2", "black", ["v9.6", "h-67.2", "v13.6"]],
+    ["res:2", "esp:GND.3", "black", ["v8.4", "h-76.8", "v-44"]]
   ],
   "dependencies": {}
 }
