@@ -32,19 +32,17 @@ A classificação da temperatura medida pelo sensor rege o comportamento dos atu
 > [!NOTE]
 > **Comportamento Gradual e Retorno Térmico:** O alarme acústico permanece ativo enquanto a temperatura for igual ou superior a 70.0 °C, sendo desativado imediatamente ao resfriar abaixo deste limiar. Abaixo de 60.0 °C, o brilho do LED diminui linearmente até apagar totalmente ao atingir menos de 25.0 °C.
 
-## 3. O Desafio Técnico: Resposta Proporcional (PWM) e Modelagem NTC
+## 3. O Desafio Técnico: Resposta Proporcional e Sinalização Gradual (PWM)
 
-Para fornecer percepção visual intuitiva do aquecimento antes do alarme crítico, o firmware converte o sinal do termistor e modula o brilho do LED via modulação por largura de pulso:
+Para fornecer percepção visual intuitiva do aquecimento antes do alarme de emergência, o brilho do LED vermelho aumenta gradativamente conforme a temperatura sobe:
 
-- **Conversão de Temperatura (Equação Beta):** A relação de resistência e temperatura absoluta em Kelvin ($T_K$) utiliza a formulação simplificada de Steinhart-Hart com $\beta = 3950\text{ K}$ e $T_0 = 298.15\text{ K}$:
+- **Processamento da Temperatura:** A leitura do conversor analógico (0 a 4095) é convertida para graus Celsius (°C) internamente pela Equação Beta do termistor NTC ($\beta = 3950$).
+- **Modulação de Brilho via PWM:** Na faixa de alerta proporcional (25.0 °C a 60.0 °C), o microcontrolador mapeia linearmente a temperatura no ciclo de trabalho do pino **GPIO 23** (0 a 255):
 
-$$\frac{R}{R_0} = \frac{1}{\frac{4095}{\text{ADC}} - 1}, \quad \frac{1}{T_K} = \frac{1}{T_0} + \frac{1}{\beta} \ln\left(\frac{R}{R_0}\right), \quad T(^\circ\text{C}) = T_K - 273.15$$
+$$\text{PWM} = \frac{T - 25.0}{60.0 - 25.0} \times 255$$
 
-- **Interpolação Linear do PWM:** O duty cycle do LED vermelho no pino GPIO 23 é calculado linearmente entre 25.0 °C e 60.0 °C:
-
-$$\text{PWM} = \left(\frac{T - 25.0}{60.0 - 25.0}\right) \times 255 = \left(\frac{T - 25.0}{35.0}\right) \times 255$$
-
-- **Disparo de Emergência:** A partir de 70.0 °C, o LED permanece em 100% (PWM 255), o buzzer emite tom contínuo de 1000 Hz e a mensagem `! ALERTA: TEMPERATURA CRÍTICA !` é transmitida na console serial.
+- **Comportamento Notável:** A 25.0 °C o LED inicia apagado (0%), a 42.5 °C atinge meia luz (50%) e a 60.0 °C alcança brilho máximo (100%).
+- **Alarme Crítico de Emergência:** Ao atingir ou ultrapassar 70.0 °C, o LED permanece em 100% (PWM 255), o buzzer emite aviso sonoro contínuo a 1000 Hz e o alerta `! ALERTA: TEMPERATURA CRÍTICA !` é enviado via serial.
 
 ## 4. Pinout e Conexões do Circuito (Hardware)
 
