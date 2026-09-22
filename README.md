@@ -48,7 +48,7 @@ $$\text{PWM} = \left(\frac{T - 25.0}{60.0 - 25.0}\right) \times 255 = \left(\fra
 
 ## 4. Pinout e Conexões do Circuito (Hardware)
 
-O circuito foi desenvolvido para o **ESP32 DevKit V1**, mantendo o mapeamento direto de pinos:
+O circuito foi desenvolvido para o **ESP32-DevKitC V4**, mantendo o mapeamento direto de pinos:
 
 | Componente                | Pino ESP32 | Tipo de I/O       | Função no Sistema                   | Montagem Wokwi                             |
 |:--------------------------|:-----------|:------------------|:------------------------------------|:-------------------------------------------|
